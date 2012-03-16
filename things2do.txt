@@ -1,0 +1,17 @@
+- Deal with lingering socket on exit.
+
+- Signal handlers to kill forked processes off cleanly on exit.
+   * Somewhat fixed; on client disconnect, things are closed up okay,
+     and it waits for client to come back.
+
+- Test logic to run external programs on escape sequence.
+
+- Put a semaphore lock around socket so input to QT is serialized
+  between TTY and external program execution feedback.
+    * Might not be needed; seems that send() should take care of
+      serialization.  Kept in as a note to test.
+
+- Add logging, way to track messaging; detach from STDIO in daemon
+  mode once logging is present.
+    * Almost everything now going to stdout.
+    * Need to test as Daemon.
