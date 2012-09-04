@@ -1,19 +1,29 @@
-CC=gcc
-CFLAGS=-c -Wall
-LDFLAGS=-lpthread
+package = sio-agent
+version = 1.0.0
+tarname = $(package)
+distdir = $(tarname)-$(version)
 
-SOURCES=sio_socket.c sio_local.c sio_agent.c sio_serial.c
+all clean sio-agent:
+	cd src && $(MAKE) $@
 
-OBJECTS=$(SOURCES:.c=.o)
-EXECUTABLE=sio-agent
+dist: $(distdir).tar.gz
 
-all: $(SOURCES) $(EXECUTABLE)
+$(distdir).tar.gz: $(distdir)
+	tar chof - $(distdir) | gzip -9 -c > $@
+	rm -rf $(distdir)
 
-$(EXECUTABLE): $(OBJECTS)
-	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+$(distdir): FORCE
+	mkdir -p $(distdir)/src
+	cp Makefile $(distdir)
+	cp src/Makefile $(distdir)/src
+	cp src/sio_agent.c $(distdir)/src
+	cp src/sio_agent.h $(distdir)/src
+	cp src/sio_local.c $(distdir)/src
+	cp src/sio_serial.c $(distdir)/src
+	cp src/sio_socket.c $(distdir)/src
 
-.c.o: $(CC) $(CFLAGS) $(DEBUG) $< -o $@
-
-clean:
-	rm *.o sio-agent
-
+FORCE:
+	-rm $(distdir).tar.gz > /dev/null 2>&1
+	-rm -rf $(distdir) > /dev/null 2>&1
+        
+.PHONY: FORCE all clean dist
