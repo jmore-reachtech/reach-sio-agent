@@ -9,7 +9,7 @@ LDFLAGS=-lpthread
 all: sio-agent
 
 sio-agent: $(sources)
-	gcc $(LDFLAGS) -g -O0 -o $@ $(sources)
+	$(CC) $(LDFLAGS) -g -O0 -o $@ $(sources)
 
 clean:
 	-rm sio-agent
