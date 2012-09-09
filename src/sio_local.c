@@ -6,7 +6,7 @@
 #include <string.h>
 #include "sio_agent.h"
 
-char *sioHandleLocal( char *qmlString )
+char *sioHandleLocal(char *qmlString)
 {
-    return( (char *)0 );
+    return((char *)0);
 }

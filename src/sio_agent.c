@@ -5,45 +5,41 @@
 #include <termios.h>
 #include <string.h>
 #include "sio_agent.h"
- 
-static	void sioAgentLaunch();
+
+static void sioAgentLaunch();
 
 extern char *optarg;
 extern int opterr, optopt, optind;
 
-int	verboseFlag;
-int	localEchoFlag;
-char	devFname[ 200 ];
-int	daemonFlag;
+int verboseFlag;
+int localEchoFlag;
+char devFname[200];
+int daemonFlag;
 
-static	void sioDumpHelp();
+static void sioDumpHelp();
 
-main( int argc, char *argv[] )
+int main(int argc, char *argv[])
 {
-int	c;
-char    *sioTTYVar;
+    int c;
+    char *sioTTYVar;
 
     verboseFlag = 0;
     localEchoFlag = 0;
     daemonFlag = 0;
 
-    sioTTYVar = getenv( "SIO_AGENT_TTY" );
-    if( sioTTYVar ) {
+    sioTTYVar = getenv("SIO_AGENT_TTY");
+    if (sioTTYVar) {
+        fprintf(stderr, "sio_agent: Setting device to %s from SIO_AGENT_TTY\n",
+            sioTTYVar);
+        fprintf(stderr, "Use -t devname to override\n");
 
-	fprintf( stderr,
-  	    "sio_agent: Setting device to %s from SIO_AGENT_TTY\n", sioTTYVar );
-	fprintf( stderr, "Use -t devname to override\n" );
+        strcpy(devFname, sioTTYVar);
+    } else {
+        fprintf(stderr, "sio_agent: Setting device to default /dev/ttyUSB0\n");
+        fprintf(stderr, "Use -t devname to override\n" );
 
-	strcpy( devFname, sioTTYVar );
-    } else  {
-	fprintf( stderr,
-		"sio_agent: Setting device to default /dev/ttyUSB0\n" );
-	fprintf( stderr, "Use -t devname to override\n" );
-
-        strcpy( devFname, "/dev/ttyUSB0" );
+        strcpy(devFname, "/dev/ttyUSB0");
     }
-
-
 
     /*  Options:
      *
@@ -54,40 +50,39 @@ char    *sioTTYVar;
      *   -h|?          # Dump Help
      */
     opterr = 0;
-    while( (c = getopt( argc, argv, "lvdt:h?" )) != EOF ) {
+    while ((c = getopt( argc, argv, "lvdt:h?" )) != EOF) {
+        switch (c) {
 
-	switch( c ) {
+        case 't':
+            strcpy( devFname, optarg );
+            break;
 
-	    case 't':
-		strcpy( devFname, optarg );
-		break;
+        case 'v':
+            verboseFlag = 1;
+            break;
 
-	    case 'v':
-		verboseFlag = 1;
-		break;
+        case 'l':
+            localEchoFlag = 1;
+            break;
 
-	    case 'l':
-		localEchoFlag = 1;
-		break;
+        case 'd':
+            daemonFlag = 1;
+            break;
 
-	    case 'd':
-		daemonFlag = 1;
-		break;
-
-	    case '?':
-	    case 'h':
-	    default:
-		sioDumpHelp();
-		exit( 1 );
-
-	}
+        case '?':
+        case 'h':
+        default:
+            sioDumpHelp();
+            exit(1);
+        }
     }
 
     sioAgentLaunch();
+
+    return 0;
 }
 
-static 	void *sioHelpStrings[] = {
-
+static  const char *sioHelpStrings[] = {
     " ",
     "usage: sio_agent [options]",
     " ",
@@ -99,25 +94,24 @@ static 	void *sioHelpStrings[] = {
     ""
 };
 
-static 	void sioDumpHelp()
+static void sioDumpHelp()
 {
-int	i = 0;
+    int i = 0;
 
-   while( sioHelpStrings[ i ] )
-	fprintf( stderr, "%s\n", sioHelpStrings[ i++ ] );
-
+    while (sioHelpStrings[ i ]) {
+        fprintf( stderr, "%s\n", sioHelpStrings[ i++ ] );
+    }
 }
 
-static	void sioAgentLaunch()
+static  void sioAgentLaunch()
 {
     /*  Keep STDIO going for now.
      */
-    if( daemonFlag ) {
-	daemon( 0, 1 );
+    if (daemonFlag) {
+        daemon(0, 1);
     }
 
     /*  Should never return; just wait for connections and process.
      */
-    sioSocketInit( SIO_AGENT_PORT, devFname );
-
+    sioSocketInit(SIO_AGENT_PORT, devFname);
 }
