@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/socket.h> 
+#include <sys/un.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <stdlib.h>
@@ -7,15 +8,36 @@
 
 #define MAXPENDING 1
 
-/*  Used to send to socket after accept, when called by TTY reader. */
-int socketFd;
-
-static void sioReadClientConnection(int newFd);
-
 static void sioDieWithError(char *errorMessage)
 {
     printf("Exiting: %s\n", errorMessage);
     exit(1);
+}
+
+static int sioCreateUnixServerSocket(const char *socketPath)
+{
+    int sock;
+    struct sockaddr_un echoServAddr;
+
+    if ((sock = socket(PF_UNIX, SOCK_STREAM, 0)) < 0) {
+        sioDieWithError("socket() failed");
+    }
+
+    memset(&echoServAddr, 0, sizeof(echoServAddr));
+    echoServAddr.sun_family = AF_UNIX; 
+    strncpy(echoServAddr.sun_path, socketPath, sizeof(echoServAddr.sun_path));
+    echoServAddr.sun_path[sizeof(echoServAddr.sun_path) - 1] = '\0';
+
+    if (bind(sock, (struct sockaddr *)&echoServAddr,
+        sizeof(echoServAddr)) < 0) {
+        sioDieWithError("bind() failed");
+    }
+
+    if (listen(sock, MAXPENDING) < 0) {
+        sioDieWithError("listen() failed");
+    }
+
+    return sock;
 }
 
 static int sioCreateTCPServerSocket(unsigned short port)
@@ -32,7 +54,7 @@ static int sioCreateTCPServerSocket(unsigned short port)
     echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     echoServAddr.sin_port = htons(port);
 
-    if (bind(sock, (struct sockaddr *) &echoServAddr,
+    if (bind(sock, (struct sockaddr *)&echoServAddr,
         sizeof(echoServAddr)) < 0) {
         sioDieWithError("bind() failed");
     }
@@ -45,90 +67,105 @@ static int sioCreateTCPServerSocket(unsigned short port)
 }
 
 
-int sioAcceptTCPConnection(int servSock)
+int sioAcceptConnection(int serverFd, int addressFamily)
 {
-    int clntSock;
-    struct sockaddr_in echoClntAddr;
-    unsigned int clntLen;
+    /* define a variable to hold the client's address for either family */
+    union {
+        struct sockaddr_un unixClientAddr;
+        struct sockaddr_in inetClientAddr;
+    } clientAddr;
+    int clientLength = sizeof(clientAddr);
 
-    clntLen = sizeof(echoClntAddr);
+    const int clientFd = accept4(serverFd, (struct sockaddr *)&clientAddr,
+        &clientLength, SOCK_NONBLOCK);
+    if (clientFd >= 0) {
+        switch (addressFamily) {
+        case AF_UNIX:
+            printf("Handling Unix client on %s\n",
+                clientAddr.unixClientAddr.sun_path);
+            break;
 
-    if ((clntSock = accept(servSock, (struct sockaddr *) &echoClntAddr,
-        &clntLen)) < 0) {
-        sioDieWithError("accept() failed");
-    }
+        case AF_INET:
+            printf("Handling TCP client %s\n",
+                inet_ntoa(clientAddr.inetClientAddr.sin_addr));
+            break;
 
-    printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
-
-    return clntSock;
-}
-
-
-int sioSocketInit(int port, char *devFnam )
-{
-    int sockFd, clientSockFd;
-
-    sockFd = sioCreateTCPServerSocket(port);
-
-    /*  This really isn't every going to accept more than one
-     *  one connection, and Agent isn't designed to handle more
-     *  than one connection.  So, it just waits for child to die after
-     *  spawning off. */
-    for (;;) {
-        clientSockFd = sioAcceptTCPConnection(sockFd);
-
-        /* Public Socket Descriptor for interaction with QML Viewer */
-        socketFd = clientSockFd;
-
-        /*  Spawn a TTY Reader Thread. */
-        sioSerialInit(devFname);
-
-        /*  This returns if client closes connection.  Tear down
-         *  entire session, return to waiting for connection to 
-         *  come back. */
-        sioReadClientConnection(clientSockFd);
-
-        if (verboseFlag) {
-            fprintf(stdout, "sioSocketInit(): tearing down\n");
+        default:
+            break;
         }
-
-        sioSerialShutdown();
     }
+
+    return clientFd;
 }
 
 
-static void sioReadClientConnection(int newFd)
+int sioSocketInit(unsigned short port, int *addressFamily,
+    const char *unixSocketPath)
 {
-    char msgBuff[128];
+    int listenFd = -1;
+
+    if (port == 0) {
+        /* create a Unix domain socket */
+        listenFd = sioCreateUnixServerSocket(unixSocketPath);
+        *addressFamily = AF_UNIX;
+    } else {
+        listenFd = sioCreateTCPServerSocket(port);
+        *addressFamily = AF_INET;
+    }
+    return listenFd;
+}
+
+
+/**
+ * 
+ * 
+ * @param newFd 
+ * @param msgBuff 
+ * @param bufferSize 
+ * 
+ * @return int 0 if no message to return (handled here), -1 if 
+ *         recv() returned an error code (close connection) or
+ *         >0 to indicate msgBuff has that many characters
+ *         filled in
+ */
+int sioSocketRead(int newFd, char *msgBuff, size_t bufferSize)
+{
     int cnt;
 
-    for (;;) {
-        if ((cnt = recv( newFd, msgBuff, 128, 0 )) <= 0) {
-            printf("sioHandleServer(): recv() failed, client closed\n");
-            return;
-        } else {
-            msgBuff[cnt] = 0;
+    if ((cnt = recv(newFd, msgBuff, 128, 0)) <= 0) {
+        printf("sioHandleServer(): recv() failed, client closed\n");
+        return -1;
+    } else {
+        msgBuff[cnt] = 0;
+        if (verboseFlag) {
+            printf("%s", msgBuff);
+        }
+
+        /*  Check for Ping message, if so, respond to it. */
+
+        if (strncmp("ping", msgBuff, strlen("ping")) == 0) {
             if (verboseFlag) {
-                printf("%s", msgBuff);
+                fprintf( stdout, "sioHandleServer(): sending pong!\n");
             }
 
-            /*  Check for Ping message, if so, respond to it. */
-
-            if (!strncmp("ping", msgBuff, strlen("ping"))) {
-                if (verboseFlag) {
-                    fprintf( stdout, "sioHandleServer(): sending pong!\n");
-                }
-
-                send(newFd, "pong!\n", strlen( "pong!\n"), 0);
-            } else {
-                sioTTYWriter( msgBuff );
+            send(newFd, "pong!\n", strlen("pong!\n"), 0);
+            return 0;
+        } else if (msgBuff[0] == '*') {
+            /* this is an escape message; handle locally and reply */
+            char *retMsg = sioHandleLocal(msgBuff);
+            if (retMsg) {
+                sioSocketWrite(newFd, retMsg);
+                free(retMsg);
             }
+            return 0;
+        } else {
+            return cnt;
         }
     }
 }
 
 
-void sioSocketSendToClient(char *buff)
+void sioSocketWrite(int socketFd, const char *buff)
 {
     int cnt = strlen(buff);
 

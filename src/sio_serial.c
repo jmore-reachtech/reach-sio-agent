@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -14,126 +16,107 @@
 
 static void *sioTTYReader(void *arg);
 
-static int tty_fd;
-static struct termios tio;
 
 pthread_t sioTTYReader_thread;
 
-int sioSerialInit(char *tty_dev)
+int sioTTYInit(const char *tty_dev)
 {
-    memset(&tio,0,sizeof(tio));
-    tio.c_iflag=0;
-    tio.c_oflag=0;
-    tio.c_cflag=CS8|CREAD|CLOCAL;
-    tio.c_lflag=0;
-    tio.c_cc[VMIN]=1;
-    tio.c_cc[VTIME]=5;
+    int fd = -1;
 
-    tty_fd = open(tty_dev, O_RDWR);
-    if (tty_fd < 0) {
-        printf("can't open %s\n", tty_dev);
-        exit(1);
-    }
-    cfsetospeed(&tio, B115200);
-    cfsetispeed(&tio,B115200);
-    tcsetattr(tty_fd,TCSANOW,&tio);
+    struct termios tio;
+    memset(&tio, 0, sizeof(tio));
+    tio.c_iflag = 0;
+    tio.c_oflag = 0;
+    tio.c_cflag = CS8 | CREAD | CLOCAL;
+    tio.c_lflag = 0;
+    tio.c_cc[VMIN] = 1;
+    tio.c_cc[VTIME] = 5;
 
-    pthread_create(&sioTTYReader_thread, NULL, sioTTYReader, NULL);
-
-    return(0);
-}
-
-void sioSerialShutdown()
-{
-    if (verboseFlag) {
-        fprintf(stdout, "sioSerialShutdown(): killing pthread reader\n");
-    }
-
-    pthread_cancel(sioTTYReader_thread);
-
-    close(tty_fd);
-}
-
-static void *sioTTYReader(void *arg)
-{
-    char buff[200];
-    int  i = 0;
-
-    if ( verboseFlag )
-        printf( "sioTTYReader(): running\n" );
-
-    /* Make sure we can get canceled.*/
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-    /*  Gather entire string, drop CR, send to socket handler. */
-    for (;;) {
-        if (read(tty_fd, &buff[ i ], 1) > 0) {
-            if (buff[i] == '\r') {
-                buff[i] = '\n';
-                buff[++i] = 0;
-
-                if (localEchoFlag) {
-                    write(tty_fd, "\r\n", 2);
-                }
-
-                sioSocketSendToClient(buff);
-                i = 0;
-
-                if (verboseFlag) {
-                    fprintf(stdout, "sioTTYReader(): buff = %s", buff);
-                }
-            } else if (buff[i] == '\n') {
-                continue;
-            } else if (buff[i] == '\b') {
-                /*  If it's BS with nothing in buffer, ignore, else
-                 *  back up stream, erasing last character typed. */
-                if (i) {
-                    i--;
-                    write(tty_fd, "\b \b", 3);
-                } else {
-                    continue;
-                }
-            } else {
-                if (localEchoFlag) {
-                    write(tty_fd, &buff[i], 1);
-                }
-
-                i++;
-            }
+    if (tty_dev == 0) {
+        fd = posix_openpt(O_RDWR | O_NOCTTY);
+        if (fd < 0) {
+            printf("can't open %s\n", tty_dev);
         } else {
-            if (verboseFlag) {
-                printf("sio_tty_reader(): error on read()\n");
-            }
+            tcsetattr(fd, TCSANOW, &tio);
+            grantpt(fd);
+            unlockpt(fd);
+            printf("slave port = %s\n", ptsname(fd));
+        }
+    } else {
+        fd = open(tty_dev, O_RDWR);
+        if (fd < 0) {
+            printf("can't open %s\n", tty_dev);
+        } else {
+            cfsetospeed(&tio, B115200);
+            cfsetispeed(&tio, B115200);
+            tcsetattr(fd, TCSANOW, &tio);
         }
     }
 
-    return 0;
+    return fd;
+}
+
+int sioTTYRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
+{
+    /* Gather entire string, drop CR. */
+    char c;
+    if (read(fd, &c, 1) > 0) {
+        if (c == '\r') {
+            int pos = *currPos;
+            *currPos = 0;
+
+            msgBuff[pos++] = '\n';
+            msgBuff[pos++] = '\0';
+
+            if (localEchoFlag) {
+                write(fd, "\r\n", 2);
+            }
+
+            if (verboseFlag) {
+                fprintf(stdout, "sioTTYReader(): buff = %s", msgBuff);
+            }
+
+            return pos;
+        } else if (c == '\n') {
+            return 0;
+        } else if (c == '\b') {
+            /*  If it's BS with nothing in buffer, ignore, else
+             *  back up stream, erasing last character typed. */
+            if (*currPos > 0) {
+                (*currPos)--;
+                write(fd, "\b \b", 3);
+            }
+            return 0;
+        } else {
+            msgBuff[(*currPos)++] = c;
+            if (localEchoFlag) {
+                write(fd, &c, 1);
+            }
+            return 0;
+        }
+    } else {
+        if (verboseFlag) {
+            printf("sio_tty_reader(): error on read()\n");
+        }
+        return -1;
+    }
 }
 
 
-void sioTTYWriter(char *buff)
+void sioTTYWrite(int serialFd, const char *msgBuff, int buffSize)
 {
     char *retMsg;
 
     if (verboseFlag) {
-        fprintf(stdout, "sioTTYWRiter(): got buff %s", buff);
+        fprintf(stdout, "sioTTYWRiter(): got buff %s", msgBuff);
     }
 
-    /*  Check for escape sequence, intercept traffic.  Else, send out TTY. */
-    if (buff[0] == '*') {
-        retMsg = sioHandleLocal(buff);
-        if (retMsg) {
-            sioSocketSendToClient(retMsg);
-            free(retMsg);
+    if (write(serialFd, msgBuff, buffSize) < 0) {
+        if (verboseFlag) {
+            fprintf(stdout, "sio_tty_writter(): error on write()\n");
         }
-    } else {
-        if (write(tty_fd, buff, strlen(buff) ) < 0) {
-            if (verboseFlag) {
-                fprintf(stdout, "sio_tty_writter(): error on write()\n");
-            }
-        }
-
-        /*  Put a CR in; we may want to revisit how to do this. */
-        write(tty_fd, "\r", 1);
     }
+
+    /*  Put a CR in; we may want to revisit how to do this. */
+    write(serialFd, "\r", 1);
 }
