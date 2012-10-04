@@ -19,7 +19,7 @@ static void *sioTTYReader(void *arg);
 
 pthread_t sioTTYReader_thread;
 
-int sioTTYInit(const char *tty_dev)
+int sioTtyInit(const char *tty_dev)
 {
     int fd = -1;
 
@@ -56,7 +56,7 @@ int sioTTYInit(const char *tty_dev)
     return fd;
 }
 
-int sioTTYRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
+int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 {
     /* Gather entire string, drop CR. */
     char c;
@@ -68,11 +68,11 @@ int sioTTYRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
             msgBuff[pos++] = '\n';
             msgBuff[pos++] = '\0';
 
-            if (localEchoFlag) {
+            if (sioLocalEchoFlag) {
                 write(fd, "\r\n", 2);
             }
 
-            if (verboseFlag) {
+            if (sioVerboseFlag) {
                 fprintf(stdout, "sioTTYReader(): buff = %s", msgBuff);
             }
 
@@ -89,13 +89,13 @@ int sioTTYRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
             return 0;
         } else {
             msgBuff[(*currPos)++] = c;
-            if (localEchoFlag) {
+            if (sioLocalEchoFlag) {
                 write(fd, &c, 1);
             }
             return 0;
         }
     } else {
-        if (verboseFlag) {
+        if (sioVerboseFlag) {
             printf("sio_tty_reader(): error on read()\n");
         }
         return -1;
@@ -103,16 +103,16 @@ int sioTTYRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 }
 
 
-void sioTTYWrite(int serialFd, const char *msgBuff, int buffSize)
+void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize)
 {
     char *retMsg;
 
-    if (verboseFlag) {
+    if (sioVerboseFlag) {
         fprintf(stdout, "sioTTYWRiter(): got buff %s", msgBuff);
     }
 
     if (write(serialFd, msgBuff, buffSize) < 0) {
-        if (verboseFlag) {
+        if (sioVerboseFlag) {
             fprintf(stdout, "sio_tty_writter(): error on write()\n");
         }
     }

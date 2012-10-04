@@ -19,7 +19,7 @@ static int sioCreateUnixServerSocket(const char *socketPath)
     int sock;
     struct sockaddr_un echoServAddr;
 
-    if ((sock = socket(PF_UNIX, SOCK_STREAM, 0)) < 0) {
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         sioDieWithError("socket() failed");
     }
 
@@ -67,7 +67,7 @@ static int sioCreateTCPServerSocket(unsigned short port)
 }
 
 
-int sioAcceptConnection(int serverFd, int addressFamily)
+int sioTioSocketAccept(int serverFd, int addressFamily)
 {
     /* define a variable to hold the client's address for either family */
     union {
@@ -78,7 +78,7 @@ int sioAcceptConnection(int serverFd, int addressFamily)
 
     const int clientFd = accept4(serverFd, (struct sockaddr *)&clientAddr,
         &clientLength, SOCK_NONBLOCK);
-    if (clientFd >= 0) {
+    if (sioVerboseFlag && (clientFd >= 0)) {
         switch (addressFamily) {
         case AF_UNIX:
             printf("Handling Unix client on %s\n",
@@ -99,7 +99,7 @@ int sioAcceptConnection(int serverFd, int addressFamily)
 }
 
 
-int sioSocketInit(unsigned short port, int *addressFamily,
+int sioTioSocketInit(unsigned short port, int *addressFamily,
     const char *unixSocketPath)
 {
     int listenFd = -1;
@@ -128,33 +128,33 @@ int sioSocketInit(unsigned short port, int *addressFamily,
  *         >0 to indicate msgBuff has that many characters
  *         filled in
  */
-int sioSocketRead(int newFd, char *msgBuff, size_t bufferSize)
+int sioTioSocketRead(int newFd, char *msgBuff, size_t bufferSize)
 {
     int cnt;
 
-    if ((cnt = recv(newFd, msgBuff, 128, 0)) <= 0) {
+    if ((cnt = recv(newFd, msgBuff, bufferSize, 0)) <= 0) {
         printf("sioHandleServer(): recv() failed, client closed\n");
+        close(newFd);
         return -1;
     } else {
         msgBuff[cnt] = 0;
-        if (verboseFlag) {
+        if (sioVerboseFlag) {
             printf("%s", msgBuff);
         }
 
         /*  Check for Ping message, if so, respond to it. */
-
         if (strncmp("ping", msgBuff, strlen("ping")) == 0) {
-            if (verboseFlag) {
+            if (sioVerboseFlag) {
                 fprintf( stdout, "sioHandleServer(): sending pong!\n");
             }
 
-            send(newFd, "pong!\n", strlen("pong!\n"), 0);
+            sioTioSocketWrite(newFd, "pong!\n");
             return 0;
         } else if (msgBuff[0] == '*') {
             /* this is an escape message; handle locally and reply */
             char *retMsg = sioHandleLocal(msgBuff);
             if (retMsg) {
-                sioSocketWrite(newFd, retMsg);
+                sioTioSocketWrite(newFd, retMsg);
                 free(retMsg);
             }
             return 0;
@@ -165,7 +165,7 @@ int sioSocketRead(int newFd, char *msgBuff, size_t bufferSize)
 }
 
 
-void sioSocketWrite(int socketFd, const char *buff)
+void sioTioSocketWrite(int socketFd, const char *buff)
 {
     int cnt = strlen(buff);
 

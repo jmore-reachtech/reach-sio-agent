@@ -8,10 +8,13 @@
 
 #include "sio_agent.h"
 
-int verboseFlag;
-int localEchoFlag;
-int keepGoing;
-const char *progName;
+/* global variables, shared with other modules */
+int sioVerboseFlag;
+int sioLocalEchoFlag;
+
+/* module-wide "global" variables */
+static int keepGoing;
+static const char *progName;
 
 static void sioDumpHelp();
 static void sioAgent(const char *serialName, unsigned short tcpPort,
@@ -20,19 +23,14 @@ static inline int max(int a, int b) { return (a > b) ? a : b; }
 
 int main(int argc, char *argv[])
 {
-    int c;
-    char *sioTTYVar = 0;
-    int daemonFlag = 0;
-
     progName = argv[0];
 
-    verboseFlag = 0;
-    localEchoFlag = 0;
-    char *serialName = SIO_DEFAULT_SERIAL_DEVICE;
+    int daemonFlag = 0;
+    const char *serialName = SIO_DEFAULT_SERIAL_DEVICE;
     unsigned short tcpPort = 0;
 
     /* override the TTY from environment if variable is set */
-    sioTTYVar = getenv("SIO_AGENT_TTY");
+    char *sioTTYVar = getenv("SIO_AGENT_TTY");
     if (sioTTYVar) {
         serialName = sioTTYVar;
         fprintf(stderr, "sio_agent: Setting device to %s from SIO_AGENT_TTY\n",
@@ -42,15 +40,15 @@ int main(int argc, char *argv[])
     while (1) {
         static struct option longOptions[] = {
             { "daemon",     no_argument,       0, 'd' },
-            { "local_echo", no_argument,       0, 'l' },
+            { "local-echo", no_argument,       0, 'l' },
             { "pty",        no_argument,       0, 'p' },
             { "serial",     required_argument, 0, 't' },
-            { "tcp",        optional_argument, 0, 'i' },
-            { "help",       no_argument,       0, 'h' },
+            { "sio-port",   optional_argument, 0, 's' },
             { "verbose",    no_argument,       0, 'v' },
+            { "help",       no_argument,       0, 'h' },
             { 0,            0, 0,  0  }
         };
-        int c = getopt_long(argc, argv, "di::lpt:uvh?", longOptions, 0);
+        int c = getopt_long(argc, argv, "dlps::t:vh?", longOptions, 0);
 
         if (c == -1) {
             break;  // no more options to process
@@ -61,28 +59,24 @@ int main(int argc, char *argv[])
             daemonFlag = 1;
             break;
 
-        case 'i':
-            tcpPort = (optarg == 0) ? SIO_DEFAULT_AGENT_PORT : atoi(optarg);
-            break;
-
         case 'l':
-            localEchoFlag = 1;
+            sioLocalEchoFlag = 1;
             break;
 
         case 'p':
-            serialName = 0;
+            serialName = 0;  /* special value indicates pty */
+            break;
+
+        case 's':
+            tcpPort = (optarg == 0) ? SIO_DEFAULT_AGENT_PORT : atoi(optarg);
             break;
 
         case 't':
             serialName = optarg;
             break;
 
-        case 'u':
-            tcpPort = 0;
-            break;
-
         case 'v':
-            verboseFlag = 1;
+            sioVerboseFlag = 1;
             break;
 
         case '?':
@@ -108,19 +102,18 @@ static void sioDumpHelp()
 {
     fprintf(stderr, "usage: %s [options]\n"
         "    where options are:\n"
-        "        -d          | --daemon        run in background\n"
-        "        -i [<port>] | --tcp=[<port>]  use TCP socket, default = %d\n"
-        "        -l          | --local_echo    local echo on\n"
-        "        -p          | --pty           use pty device instead of real serial\n"
-        "        -t          | --serial <dev>  use <dev> instead of /dev/ttyUSB0\n"
-        "        -v          | --verbose       print progress messages\n"
-        "        -h          | -?|--help       print usage information\n",
+        "        -d          | --daemon             run in background\n"
+        "        -l          | --local_echo         local echo on\n"
+        "        -p          | --pty                use pty device instead of real serial\n"
+        "        -s [<port>] | --sio_port=[<port>]  use TCP socket, default = %d\n"
+        "        -t          | --serial <dev>       use <dev> instead of /dev/ttyUSB0\n"
+        "        -v          | --verbose            print progress messages\n"
+        "        -h          | -?|--help            print usage information\n",
         progName, SIO_DEFAULT_AGENT_PORT);
 }
 
 static void sioInterruptHandler(int sig)
 {
-    printf("%s called\n", __FUNCTION__);
     keepGoing = 0;
 }
 
@@ -155,7 +148,7 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
 
     /* open the server socket */
     int addressFamily = 0;
-    const int listenFd = sioSocketInit(tcpPort, &addressFamily, unixSocketPath);
+    const int listenFd = sioTioSocketInit(tcpPort, &addressFamily, unixSocketPath);
     if (listenFd < 0) {
         /* open failed, can't continue */
         fprintf(stderr, "could not open server socket\n");
@@ -170,9 +163,10 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
     while (keepGoing) {
         int nfds = 0;
         off_t serialPos = 0;
+        char ttyBuff[200];
 
         /* try opening the serial device */
-        const int serialFd = sioTTYInit(serialName);
+        const int serialFd = sioTtyInit(serialName);
         if (serialFd < 0) {
             /* open failed, can't continue */
             fprintf(stderr, "could not open serial port %s\n", serialName);
@@ -207,17 +201,19 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
             /* check for a new connection to accept */
             if (FD_ISSET(listenFd, &readFdSet)) {
                 /* new connection is here, accept it */
-                connectedFd = sioAcceptConnection(listenFd, addressFamily);
-                FD_CLR(listenFd, &currFdSet);
-                FD_SET(connectedFd, &currFdSet);
-                nfds = max(serialFd, connectedFd) + 1;
+                connectedFd = sioTioSocketAccept(listenFd, addressFamily);
+                if (connectedFd >= 0) {
+                    FD_CLR(listenFd, &currFdSet);
+                    FD_SET(connectedFd, &currFdSet);
+                    nfds = max(serialFd, connectedFd) + 1;
+                }
             }
 
             /* check for packet received on the client socket */
             if ((connectedFd >= 0) && FD_ISSET(connectedFd, &readFdSet)) {
                 /* connected tio_agent has something to relay to serial port */
                 char msgBuff[128];
-                const int readCount = sioSocketRead(connectedFd, msgBuff,
+                const int readCount = sioTioSocketRead(connectedFd, msgBuff,
                     sizeof(msgBuff));
                 if (readCount < 0) {
                     FD_CLR(connectedFd, &currFdSet);
@@ -225,7 +221,7 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
                     nfds = max(serialFd, listenFd) + 1;
                     connectedFd = -1;
                 } else if (readCount > 0) {
-                    sioTTYWrite(serialFd, msgBuff, readCount);
+                    sioTtyWrite(serialFd, msgBuff, readCount);
                 }
             }
 
@@ -235,14 +231,13 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
                  * serial port has something to send to the tio_agent,
                  * if connected 
                  */
-                char msgBuff[200];
-                int serialRet = sioTTYRead(serialFd, msgBuff, sizeof(msgBuff),
+                int serialRet = sioTtyRead(serialFd, ttyBuff, sizeof(ttyBuff),
                     &serialPos);
                 if (serialRet < 0) {
                     /* fall out of this loop to reopen serial port or pts */
                     break;
                 } else if ((serialRet > 0) && (connectedFd >= 0)) {
-                    sioSocketWrite(connectedFd, msgBuff);
+                    sioTioSocketWrite(connectedFd, ttyBuff);
                 }
             }
         }
@@ -251,7 +246,7 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
         FD_CLR(serialFd, &currFdSet);
     }
 
-    if (verboseFlag) {
+    if (sioVerboseFlag) {
         printf("cleaning up\n");
     }
 
@@ -263,7 +258,14 @@ static void sioAgent(const char *serialName, unsigned short tcpPort,
     }
 
     if (tcpPort == 0) {
-        /* try to remove the socket file, best effort */
-        unlink(SIO_AGENT_UNIX_SOCKET);
+        /* best effort removal of socket */
+        const int rv = unlink(unixSocketPath);
+        if (sioVerboseFlag) {
+            if (rv == 0) {
+                printf("socket file %s unlinked\n", unixSocketPath);
+            } else {
+                printf("socket file %s unlink failed\n", unixSocketPath);
+            }
+        }
     }
 }
