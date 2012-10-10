@@ -6,11 +6,12 @@ sources = sio_agent.c \
 headers = sio_agent.h
 
 LDFLAGS=-pthread
+CFLAGS=-Wall
 
 all: sio-agent
 
 sio-agent: $(sources) $(headers)
-	$(CC) $(LDFLAGS) -g -O0 -o $@ $(sources)
+	$(CC) $(CFLAGS) $(LDFLAGS) -g -O0 -o $@ $(sources)
 
 clean:
 	$(RM) sio-agent
