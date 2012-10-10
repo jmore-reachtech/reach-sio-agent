@@ -142,25 +142,7 @@ int sioTioSocketRead(int newFd, char *msgBuff, size_t bufferSize)
             printf("%s", msgBuff);
         }
 
-        /*  Check for Ping message, if so, respond to it. */
-        if (strncmp("ping", msgBuff, strlen("ping")) == 0) {
-            if (sioVerboseFlag) {
-                fprintf( stdout, "sioHandleServer(): sending pong!\n");
-            }
-
-            sioTioSocketWrite(newFd, "pong!\n");
-            return 0;
-        } else if (msgBuff[0] == '*') {
-            /* this is an escape message; handle locally and reply */
-            char *retMsg = sioHandleLocal(msgBuff);
-            if (retMsg) {
-                sioTioSocketWrite(newFd, retMsg);
-                free(retMsg);
-            }
-            return 0;
-        } else {
-            return cnt;
-        }
+	return cnt;
     }
 }
 
