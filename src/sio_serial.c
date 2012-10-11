@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,11 +13,6 @@
 
 #include "sio_agent.h"
 
-
-static void *sioTTYReader(void *arg);
-
-
-pthread_t sioTTYReader_thread;
 
 int sioTtyInit(const char *tty_dev)
 {
@@ -73,7 +68,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
             }
 
             if (sioVerboseFlag) {
-                fprintf(stdout, "sioTTYReader(): buff = %s", msgBuff);
+                fprintf(stdout, "%s: buff = %s", __FUNCTION__, msgBuff);
             }
 
             return pos;
@@ -105,8 +100,6 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 
 void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize)
 {
-    char *retMsg;
-
     if (sioVerboseFlag) {
         fprintf(stdout, "sioTTYWRiter(): got buff %s", msgBuff);
     }

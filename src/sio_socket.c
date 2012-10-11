@@ -1,9 +1,12 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <sys/socket.h> 
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "sio_agent.h"
 
 #define MAXPENDING 1
@@ -74,15 +77,14 @@ int sioTioSocketAccept(int serverFd, int addressFamily)
         struct sockaddr_un unixClientAddr;
         struct sockaddr_in inetClientAddr;
     } clientAddr;
-    int clientLength = sizeof(clientAddr);
+    socklen_t clientLength = sizeof(clientAddr);
 
     const int clientFd = accept4(serverFd, (struct sockaddr *)&clientAddr,
         &clientLength, SOCK_NONBLOCK);
     if (sioVerboseFlag && (clientFd >= 0)) {
         switch (addressFamily) {
         case AF_UNIX:
-            printf("Handling Unix client on %s\n",
-                clientAddr.unixClientAddr.sun_path);
+            printf("Handling Unix client\n");
             break;
 
         case AF_INET:
