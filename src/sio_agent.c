@@ -10,7 +10,6 @@
 
 /* global variables, shared with other modules */
 int sioVerboseFlag;
-int sioLocalEchoFlag;
 
 /* module-wide "global" variables */
 static int keepGoing;
@@ -26,8 +25,10 @@ int main(int argc, char *argv[])
     progName = argv[0];
 
     int daemonFlag = 0;
+    int localEcho = 0;
     const char *serialName = SIO_DEFAULT_SERIAL_DEVICE;
     unsigned short tcpPort = 0;
+    unsigned int baudRate = SIO_DEFAULT_SERIAL_RATE;
 
     /* override the TTY from environment if variable is set */
     char *sioTTYVar = getenv("SIO_AGENT_TTY");
@@ -39,6 +40,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         static struct option longOptions[] = {
+            { "baud",       required_argument, 0, 'b' },
             { "daemon",     no_argument,       0, 'd' },
             { "local-echo", no_argument,       0, 'l' },
             { "pty",        no_argument,       0, 'p' },
@@ -48,19 +50,23 @@ int main(int argc, char *argv[])
             { "help",       no_argument,       0, 'h' },
             { 0,            0, 0,  0  }
         };
-        int c = getopt_long(argc, argv, "dlps::t:vh?", longOptions, 0);
+        int c = getopt_long(argc, argv, "b:dlps::t:vh?", longOptions, 0);
 
         if (c == -1) {
             break;  // no more options to process
         }
 
         switch (c) {
+        case 'b':
+            baudRate = atoi(optarg);
+            break;
+
         case 'd':
             daemonFlag = 1;
             break;
 
         case 'l':
-            sioLocalEchoFlag = 1;
+            localEcho = 1;
             break;
 
         case 'p':
@@ -93,6 +99,7 @@ int main(int argc, char *argv[])
         daemon(0, 1);
     }
 
+    sioTtySetParams(localEcho, baudRate);
     sioAgent(serialName, tcpPort, SIO_AGENT_UNIX_SOCKET);
 
     return 0;
@@ -101,15 +108,16 @@ int main(int argc, char *argv[])
 static void sioDumpHelp()
 {
     fprintf(stderr, "usage: %s [options]\n"
-        "    where options are:\n"
-        "        -d          | --daemon             run in background\n"
-        "        -l          | --local_echo         local echo on\n"
-        "        -p          | --pty                use pty device instead of real serial\n"
-        "        -s [<port>] | --sio_port=[<port>]  use TCP socket, default = %d\n"
-        "        -t          | --serial <dev>       use <dev> instead of /dev/ttyUSB0\n"
-        "        -v          | --verbose            print progress messages\n"
-        "        -h          | -?|--help            print usage information\n",
-        progName, SIO_DEFAULT_AGENT_PORT);
+        "  where options are:\n"
+        "    -b<rate>   | --baud=<rate>       serial port bit rate, default = %d\n"
+        "    -d         | --daemon            run in background\n"
+        "    -e         | --test              echo, backspace\n"
+        "    -p         | --pty               use pty device instead of real serial\n"
+        "    -s[<port>] | --sio_port=[<port>] use TCP socket, default = %d\n"
+        "    -t         | --serial <dev>      use <dev> instead of /dev/ttyUSB0\n"
+        "    -v         | --verbose           print progress messages\n"
+        "    -h         | -?|--help           print usage information\n",
+        progName, SIO_DEFAULT_SERIAL_RATE, SIO_DEFAULT_AGENT_PORT);
 }
 
 static void sioInterruptHandler(int sig)

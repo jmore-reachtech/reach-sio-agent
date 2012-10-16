@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <errno.h>
 #include <stdio.h>
 #include <sys/socket.h> 
 #include <sys/un.h>
@@ -30,6 +31,12 @@ static int sioCreateUnixServerSocket(const char *socketPath)
     echoServAddr.sun_family = AF_UNIX; 
     strncpy(echoServAddr.sun_path, socketPath, sizeof(echoServAddr.sun_path));
     echoServAddr.sun_path[sizeof(echoServAddr.sun_path) - 1] = '\0';
+
+    /* remove socket if exists */
+    const int status = unlink(socketPath);
+    if ((status != 0) && (errno != ENOENT)) {
+        sioDieWithError("socket file unlink failed\n");
+    }
 
     if (bind(sock, (struct sockaddr *)&echoServAddr,
         sizeof(echoServAddr)) < 0) {
@@ -119,24 +126,31 @@ int sioTioSocketInit(unsigned short port, int *addressFamily,
 
 
 /**
+ * Reads a single message from the socket connected to the 
+ * tio-agent. If no message is ready to be received, the call 
+ * will block until one is available. 
  * 
- * 
- * @param newFd 
- * @param msgBuff 
- * @param bufferSize 
+ * @param socketFd the file descriptor of for the already open 
+ *                 socket connecting to the tio-agent
+ * @param msgBuff address of a contiguous array into which the 
+ *                message will be written upon receipt from the
+ *                tio-agent
+ * @param bufferSize the number of bytes in msgBuff
  * 
  * @return int 0 if no message to return (handled here), -1 if 
  *         recv() returned an error code (close connection) or
  *         >0 to indicate msgBuff has that many characters
  *         filled in
  */
-int sioTioSocketRead(int newFd, char *msgBuff, size_t bufferSize)
+int sioTioSocketRead(int socketFd, char *msgBuff, size_t bufferSize)
 {
     int cnt;
 
-    if ((cnt = recv(newFd, msgBuff, bufferSize, 0)) <= 0) {
-        printf("sioHandleServer(): recv() failed, client closed\n");
-        close(newFd);
+    if ((cnt = recv(socketFd, msgBuff, bufferSize, 0)) <= 0) {
+        if (sioVerboseFlag) {
+            printf("%s(): recv() failed, client closed\n", __FUNCTION__);
+        }
+        close(socketFd);
         return -1;
     } else {
         msgBuff[cnt] = 0;
