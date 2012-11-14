@@ -8,6 +8,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <unistd.h>
+#include <sys/fcntl.h>
+
 #include "sio_agent.h"
 
 #define MAXPENDING 1
@@ -86,8 +89,9 @@ int sioTioSocketAccept(int serverFd, int addressFamily)
     } clientAddr;
     socklen_t clientLength = sizeof(clientAddr);
 
-    const int clientFd = accept4(serverFd, (struct sockaddr *)&clientAddr,
-        &clientLength, SOCK_NONBLOCK);
+    const int clientFd = accept(serverFd, (struct sockaddr *)&clientAddr,
+        &clientLength);
+    fcntl(clientFd, F_SETFL, O_NONBLOCK);
     if (sioVerboseFlag && (clientFd >= 0)) {
         switch (addressFamily) {
         case AF_UNIX:

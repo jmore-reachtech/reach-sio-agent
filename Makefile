@@ -1,5 +1,5 @@
 package = sio-agent
-version = 1.0.1
+version = 1.0.2
 tarname = $(package)
 distdir = $(tarname)-$(version)
 
