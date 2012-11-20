@@ -1,6 +1,13 @@
 #ifndef SIO_AGENT_H
 #define SIO_AGENT_H
 
+/* types */
+struct FdPair {
+    int inFd;
+    int outFd;
+    int maxFd;
+};
+
 /* functions defined in sio_socket.c */
 int sioTioSocketInit(unsigned short port, int *addressFamily,
     const char *unixSocketPath);
@@ -21,6 +28,10 @@ char *sioHandleLocal(char *qmlString);
 #define SIO_AGENT_UNIX_SOCKET "/tmp/sioSocket"
 #define SIO_DEFAULT_SERIAL_DEVICE "/dev/ttyUSB0"
 #define SIO_DEFAULT_SERIAL_RATE 115200
+
+#define STDIN 0
+#define STDOUT 1
+#define STDERR 2
 
 /* global variables shared across modules */
 int sioVerboseFlag;
