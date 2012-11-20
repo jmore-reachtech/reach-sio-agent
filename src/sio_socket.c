@@ -8,8 +8,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <unistd.h>
-#include <sys/fcntl.h>
 
 #include "sio_agent.h"
 
@@ -91,7 +89,6 @@ int sioTioSocketAccept(int serverFd, int addressFamily)
 
     const int clientFd = accept(serverFd, (struct sockaddr *)&clientAddr,
         &clientLength);
-    fcntl(clientFd, F_SETFL, O_NONBLOCK);
     if (sioVerboseFlag && (clientFd >= 0)) {
         switch (addressFamily) {
         case AF_UNIX:
