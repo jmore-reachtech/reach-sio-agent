@@ -1,7 +1,8 @@
 sources = sio_agent.c \
 	sio_local.c \
 	sio_serial.c \
-	sio_socket.c
+	sio_socket.c \
+	logmsg.c
 
 headers = sio_agent.h
 

@@ -1,6 +1,9 @@
 #ifndef SIO_AGENT_H
 #define SIO_AGENT_H
 
+#include <syslog.h>
+#include <sys/stat.h>
+
 /* types */
 struct FdPair {
     int inFd;
@@ -24,16 +27,14 @@ void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize);
 /* functions defined in sio_local.c */
 char *sioHandleLocal(char *qmlString);
 
+/* functions exported from logmsg.c */
+void LogOpen(const char *ident, int logToSyslog, const char *logFilePath,
+    int verboseFlag);
+void LogMsg(int level, const char *fmt, ...);
+
 #define SIO_DEFAULT_AGENT_PORT 7880
 #define SIO_AGENT_UNIX_SOCKET "/tmp/sioSocket"
 #define SIO_DEFAULT_SERIAL_DEVICE "/dev/ttyUSB0"
 #define SIO_DEFAULT_SERIAL_RATE 115200
-
-#define STDIN 0
-#define STDOUT 1
-#define STDERR 2
-
-/* global variables shared across modules */
-int sioVerboseFlag;
 
 #endif  /* SIO_AGENT_H */

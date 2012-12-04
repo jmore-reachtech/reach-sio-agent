@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <getopt.h>
+#include <libgen.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,9 +8,6 @@
 #include <unistd.h>
 
 #include "sio_agent.h"
-
-/* global variables, shared with other modules */
-int sioVerboseFlag;
 
 /* module-wide "global" variables */
 static int keepGoing;
@@ -22,14 +20,25 @@ static inline int max(int a, int b) { return (a > b) ? a : b; }
 
 int main(int argc, char *argv[])
 {
-    progName = argv[0];
-
     int daemonFlag = 0;
     int localEcho = 0;
     const char *serialName = SIO_DEFAULT_SERIAL_DEVICE;
     unsigned short tcpPort = 0;
     unsigned int baudRate = SIO_DEFAULT_SERIAL_RATE;
     int useStdio = 0;
+    const char *logFilePath = 0;
+    /* 
+     * syslog isn't installed on the target so it's disabled in this program
+     * by requiring an argument to -o|--log.
+     */ 
+    int logToSyslog = 0;
+    int verboseFlag = 0;
+
+    /* allocate memory for progName since basename() modifies it */
+    const size_t nameLen = strlen(argv[0]) + 1;
+    char arg0[nameLen];
+    memcpy(arg0, argv[0], nameLen);
+    progName = basename(arg0);
 
     /* override the TTY from environment if variable is set */
     char *sioTTYVar = getenv("SIO_AGENT_TTY");
@@ -43,7 +52,8 @@ int main(int argc, char *argv[])
         static struct option longOptions[] = {
             { "baud",       required_argument, 0, 'b' },
             { "daemon",     no_argument,       0, 'd' },
-            { "local-echo", no_argument,       0, 'l' },
+            { "test",       no_argument,       0, 'e' },
+            { "log",        required_argument, 0, 'o' },
             { "pty",        no_argument,       0, 'p' },
             { "serial",     required_argument, 0, 't' },
             { "sio-port",   optional_argument, 0, 's' },
@@ -52,7 +62,7 @@ int main(int argc, char *argv[])
             { "help",       no_argument,       0, 'h' },
             { 0,            0, 0,  0  }
         };
-        int c = getopt_long(argc, argv, "b:dilps::t:vh?", longOptions, 0);
+        int c = getopt_long(argc, argv, "b:dilo:ps::t:vh?", longOptions, 0);
 
         if (c == -1) {
             break;  // no more options to process
@@ -71,8 +81,18 @@ int main(int argc, char *argv[])
             useStdio = 1;
             break;
 
-        case 'l':
+        case 'e':
             localEcho = 1;
+            break;
+
+        case 'o':
+            if (optarg == 0) {
+                logToSyslog = 1;
+                logFilePath = 0;
+            } else {
+                logToSyslog = 0;
+                logFilePath = optarg;
+            }
             break;
 
         case 'p':
@@ -88,7 +108,7 @@ int main(int argc, char *argv[])
             break;
 
         case 'v':
-            sioVerboseFlag = 1;
+            verboseFlag = 1;
             break;
 
         case '?':
@@ -98,6 +118,9 @@ int main(int argc, char *argv[])
             exit(1);
         }
     }
+
+    /* set up logging to syslog or file; will be STDERR not told otherwise */
+    LogOpen(progName, logToSyslog, logFilePath, verboseFlag);
 
     /*  Keep STDIO going for now.
      */
@@ -124,11 +147,12 @@ static void sioDumpHelp()
         "    -d         | --daemon            run in background\n"
         "    -e         | --test              echo, backspace\n"
         "    -i         | --stdio             use standard I/O instead of serial\n"
+        "    -o<path>   | --logfile=<path>    log to file instead of stderr\n"
         "    -p         | --pty               use pty device instead of real serial\n"
-        "    -s[<port>] | --sio_port=[<port>] use TCP socket, default = %d\n"
+        "    -s[<port>] | --sio_port[=<port>] use TCP socket, default = %d\n"
         "    -t         | --serial <dev>      use <dev> instead of /dev/ttyUSB0\n"
         "    -v         | --verbose           print progress messages\n"
-        "    -h         | -?|--help           print usage information\n",
+        "    -h         | -? | --help         print usage information\n",
         progName, SIO_DEFAULT_SERIAL_RATE, SIO_DEFAULT_AGENT_PORT);
 }
 
@@ -165,17 +189,18 @@ static void sioAgent(const char *serialName, int useStdio,
         memset(&a, 0, sizeof(a));
         a.sa_handler = sioInterruptHandler;
         if (sigaction(SIGINT, &a, 0) != 0) {
-            fprintf(stderr, "sigaction() failed, errno = %d\n", errno);
+            LogMsg(LOG_ERR, "sigaction() failed, errno = %d\n", errno);
             exit(1);
         }
     }
 
     /* open the server socket */
     int addressFamily = 0;
-    const int listenFd = sioTioSocketInit(tcpPort, &addressFamily, unixSocketPath);
+    const int listenFd = sioTioSocketInit(tcpPort, &addressFamily,
+        unixSocketPath);
     if (listenFd < 0) {
         /* open failed, can't continue */
-        fprintf(stderr, "could not open server socket\n");
+        LogMsg(LOG_ERR, "could not open server socket\n");
         return;
     }
 
@@ -191,15 +216,15 @@ static void sioAgent(const char *serialName, int useStdio,
         struct FdPair serialFds;
 
         if (useStdio) {
-            serialFds.inFd = STDIN;
-            serialFds.outFd = STDOUT;
+            serialFds.inFd = fileno(stdin);
+            serialFds.outFd = fileno(stdout);
             serialFds.maxFd = max(serialFds.inFd, serialFds.outFd);
         } else {
             /* try opening the serial device */
             serialFds.inFd = sioTtyInit(serialName);
             if (serialFds.inFd < 0) {
                 /* open failed, can't continue */
-                fprintf(stderr, "could not open serial port %s\n", serialName);
+                LogMsg(LOG_ERR, "could not open serial port %s\n", serialName);
                 break;
             } else {
                 serialFds.outFd = serialFds.maxFd = serialFds.inFd;
@@ -228,7 +253,7 @@ static void sioAgent(const char *serialName, int useStdio,
                 if (errno == EINTR) {
                     break;  /* drop out of inner while */
                 } else {
-                    fprintf(stderr, "select() returned -1, errno = %d\n", errno);
+                    LogMsg(LOG_ERR, "select() returned -1, errno = %d\n", errno);
                     exit(1);
                 }
             } else if (sel <= 0) {
@@ -288,9 +313,7 @@ static void sioAgent(const char *serialName, int useStdio,
         }
     }
 
-    if (sioVerboseFlag) {
-        printf("cleaning up\n");
-    }
+    LogMsg(LOG_INFO, "cleaning up\n");
 
     if (connectedFd >= 0) {
         close(connectedFd);
@@ -302,12 +325,10 @@ static void sioAgent(const char *serialName, int useStdio,
     if (tcpPort == 0) {
         /* best effort removal of socket */
         const int rv = unlink(unixSocketPath);
-        if (sioVerboseFlag) {
-            if (rv == 0) {
-                printf("socket file %s unlinked\n", unixSocketPath);
-            } else {
-                printf("socket file %s unlink failed\n", unixSocketPath);
-            }
+        if (rv == 0) {
+            LogMsg(LOG_INFO, "socket file %s unlinked\n", unixSocketPath);
+        } else {
+            LogMsg(LOG_INFO, "socket file %s unlink failed\n", unixSocketPath);
         }
     }
 }
