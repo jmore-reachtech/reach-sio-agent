@@ -21,6 +21,7 @@ $(distdir): FORCE
 	cp src/sio_local.c $(distdir)/src
 	cp src/sio_serial.c $(distdir)/src
 	cp src/sio_socket.c $(distdir)/src
+	cp src/logmsg.c $(distdir)/src
 
 FORCE:
 	-rm $(distdir).tar.gz > /dev/null 2>&1
