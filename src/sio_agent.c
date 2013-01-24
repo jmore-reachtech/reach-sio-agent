@@ -212,7 +212,7 @@ static void sioAgent(const char *serialName, int useStdio,
     while (keepGoing) {
         int nfds = 0;
         off_t serialPos = 0;
-        char ttyBuff[200];
+        char ttyBuff[SIO_BUFFER_SIZE];
         struct FdPair serialFds;
 
         if (useStdio) {

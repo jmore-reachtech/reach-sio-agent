@@ -81,49 +81,52 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 {
     /* Gather entire string, drop CR. */
     char c;
-    if (read(fd, &c, 1) > 0) {
-        if ((c == '\r') || (c == '\n')){
-            int pos = *currPos;
-            *currPos = 0;
 
-            if (pos < 1) {
-                /* nothing here */
+    for(;;) {
+        if (read(fd, &c, 1) > 0) {
+            if ((c == '\r') || (c == '\n')){
+                int pos = *currPos;
+                *currPos = 0;
+
+                if (pos < 1) {
+                    /* nothing here */
+                    return 0;
+                } else {
+                    msgBuff[pos++] = '\n';
+                    msgBuff[pos++] = '\0';
+
+                    if (sioLocalEchoFlag) {
+                        write(fd, "\r\n", 2);
+                    }
+
+                    LogMsg(LOG_INFO, "%s: buff = %s", __FUNCTION__, msgBuff);
+
+                    return pos;
+                }
+            } else if (sioLocalEchoFlag && (c == '\b')) {
+                /*  If it's BS with nothing in buffer, ignore, else
+                 *  back up stream, erasing last character typed. */
+                if (*currPos > 0) {
+                    (*currPos)--;
+                    write(fd, "\b \b", 3);
+                }
                 return 0;
             } else {
-                msgBuff[pos++] = '\n';
-                msgBuff[pos++] = '\0';
-    
-                if (sioLocalEchoFlag) {
-                    write(fd, "\r\n", 2);
+                if (*currPos >= bufSize) {
+                    /* buffer full with no CR can't be good; flush it */
+                    *currPos = 0;
+                } else {
+                    msgBuff[(*currPos)++] = c;
+                    if (sioLocalEchoFlag) {
+                        write(fd, &c, 1);
+                    }
                 }
-    
-                LogMsg(LOG_INFO, "%s: buff = %s", __FUNCTION__, msgBuff);
-    
-                return pos;
+                return 0;
             }
-        } else if (sioLocalEchoFlag && (c == '\b')) {
-            /*  If it's BS with nothing in buffer, ignore, else
-             *  back up stream, erasing last character typed. */
-            if (*currPos > 0) {
-                (*currPos)--;
-                write(fd, "\b \b", 3);
-            }
-            return 0;
         } else {
-            if (*currPos >= bufSize) {
-                /* buffer full with no CR can't be good; flush it */
-                *currPos = 0;
-            } else {
-                msgBuff[(*currPos)++] = c;
-                if (sioLocalEchoFlag) {
-                    write(fd, &c, 1);
-                }
-            }
-            return 0;
+            LogMsg(LOG_INFO, "sio_tty_reader(): error on read()\n");
+            return -1;
         }
-    } else {
-        LogMsg(LOG_INFO, "sio_tty_reader(): error on read()\n");
-        return -1;
     }
 }
 

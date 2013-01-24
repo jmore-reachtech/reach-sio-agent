@@ -37,4 +37,6 @@ void LogMsg(int level, const char *fmt, ...);
 #define SIO_DEFAULT_SERIAL_DEVICE "/dev/ttyUSB0"
 #define SIO_DEFAULT_SERIAL_RATE 115200
 
+#define SIO_BUFFER_SIZE 256
+
 #endif  /* SIO_AGENT_H */
