@@ -141,6 +141,8 @@ int main(int argc, char *argv[])
 
 static void sioDumpHelp()
 {
+	fprintf(stderr, "SIO Agent %s \n\n",SIO_VERSION);
+	
     fprintf(stderr, "usage: %s [options]\n"
         "  where options are:\n"
         "    -b<rate>   | --baud=<rate>       serial port bit rate, default = %d\n"

@@ -4,7 +4,7 @@ tarname = $(package)
 distdir = $(tarname)-$(version)
 
 all clean sio-agent:
-	cd src && $(MAKE) $@
+	cd src && $(MAKE) $@ AGENT_VERSION=$(version)
 
 dist: $(distdir).tar.gz
 
