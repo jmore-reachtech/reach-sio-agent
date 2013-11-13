@@ -135,10 +135,9 @@ void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize)
 {
     LogMsg(LOG_INFO, "sioTTYWRiter(): got buff %s", msgBuff);
 
+
     if (write(serialFd, msgBuff, buffSize) < 0) {
         LogMsg(LOG_INFO, "%s(): error on write()\n", __FUNCTION__);
     }
-
-    /*  Put a CR in; we may want to revisit how to do this. */
-    write(serialFd, "\r", 1);
 }
+
