@@ -19,7 +19,7 @@ int sioTioSocketRead(int newFd, char *msgBuff, size_t bufferSize);
 void sioTioSocketWrite(int socketFd, const char *buff);
 
 /* functions in sio_serial.c */
-void sioTtySetParams(int localEcho, unsigned int serialRate);
+void sioTtySetParams(int localEcho, unsigned int serialRate, int enableRS485);
 int sioTtyInit(const char *tty_dev);
 int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos);
 void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize);

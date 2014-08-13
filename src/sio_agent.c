@@ -20,12 +20,13 @@ static inline int max(int a, int b) { return (a > b) ? a : b; }
 
 int main(int argc, char *argv[])
 {
-    int daemonFlag = 0;
-    int localEcho = 0;
-    const char *serialName = SIO_DEFAULT_SERIAL_DEVICE;
-    unsigned short tcpPort = 0;
-    unsigned int baudRate = SIO_DEFAULT_SERIAL_RATE;
-    int useStdio = 0;
+    int daemonFlag          = 0;
+    int localEcho           = 0;
+    const char *serialName  = SIO_DEFAULT_SERIAL_DEVICE;
+    unsigned short tcpPort  = 0;
+    unsigned int baudRate   = SIO_DEFAULT_SERIAL_RATE;
+    int useStdio            = 0;
+    int enableRS485         = 0;
     const char *logFilePath = 0;
     /* 
      * syslog isn't installed on the target so it's disabled in this program
@@ -57,12 +58,13 @@ int main(int argc, char *argv[])
             { "pty",        no_argument,       0, 'p' },
             { "serial",     required_argument, 0, 't' },
             { "sio-port",   optional_argument, 0, 's' },
+            { "rs485",      optional_argument, 0, 'f' },
             { "stdio",      no_argument,       0, 'i' },
             { "verbose",    no_argument,       0, 'v' },
             { "help",       no_argument,       0, 'h' },
             { 0,            0, 0,  0  }
         };
-        int c = getopt_long(argc, argv, "b:dilo:ps::t:vh?", longOptions, 0);
+        int c = getopt_long(argc, argv, "b:dilo:psf::t:vh?", longOptions, 0);
 
         if (c == -1) {
             break;  // no more options to process
@@ -106,6 +108,10 @@ int main(int argc, char *argv[])
         case 't':
             serialName = optarg;
             break;
+        
+        case 'f':
+            enableRS485 = 1;
+            break;
 
         case 'v':
             verboseFlag = 1;
@@ -133,7 +139,7 @@ int main(int argc, char *argv[])
         localEcho = 0;  /* terminal should already do this */
     }
 
-    sioTtySetParams(localEcho, baudRate);
+    sioTtySetParams(localEcho, baudRate, enableRS485);
     sioAgent(serialName, useStdio, tcpPort, SIO_AGENT_UNIX_SOCKET);
 
     return 0;
@@ -153,6 +159,7 @@ static void sioDumpHelp()
         "    -p         | --pty               use pty device instead of real serial\n"
         "    -s[<port>] | --sio_port[=<port>] use TCP socket, default = %d\n"
         "    -t         | --serial <dev>      use <dev> instead of /dev/ttyUSB0\n"
+        "    -f         | --rs485             enable RS-485 mode\n"
         "    -v         | --verbose           print progress messages\n"
         "    -h         | -? | --help         print usage information\n",
         progName, SIO_DEFAULT_SERIAL_RATE, SIO_DEFAULT_AGENT_PORT);

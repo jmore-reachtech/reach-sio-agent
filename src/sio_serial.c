@@ -10,13 +10,17 @@
 #include <signal.h>
 #include <wait.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
+#include <linux/serial.h>
+#include <asm-generic/ioctls.h> 
 
 #include "sio_agent.h"
 
 static int sioLocalEchoFlag;
 static speed_t sioTtyRate;
+static int rs485_mode;
 
-void sioTtySetParams(int localEcho, unsigned int serialRate)
+void sioTtySetParams(int localEcho, unsigned int serialRate, int enable_rs485)
 {
     static const struct {
         unsigned int asUint; speed_t asSpeed;
@@ -31,6 +35,7 @@ void sioTtySetParams(int localEcho, unsigned int serialRate)
     unsigned i;
 
     sioLocalEchoFlag = localEcho;
+    rs485_mode = enable_rs485;
 
     for (i = 0 ; i < (sizeof(speedTable) / sizeof(speedTable[0])) ; i++) {
         if (speedTable[i].asUint == serialRate) {
@@ -43,7 +48,7 @@ void sioTtySetParams(int localEcho, unsigned int serialRate)
 int sioTtyInit(const char *tty_dev)
 {
     int fd = -1;
-
+    struct serial_rs485 rs485conf;
     struct termios tio;
     memset(&tio, 0, sizeof(tio));
     tio.c_iflag = 0;
@@ -68,6 +73,21 @@ int sioTtyInit(const char *tty_dev)
         if (fd < 0) {
             LogMsg(LOG_ERR, "can't open %s\n", tty_dev);
         } else {
+            if (rs485_mode) {
+                /* Enable RS-485 mode: */
+                rs485conf.flags |= SER_RS485_ENABLED;
+ 
+                /* Set rts/txen delay before send, if needed: (in microseconds) */
+                rs485conf.delay_rts_before_send = 0;
+ 
+                /* Set rts/txen delay after send, if needed: (in microseconds) */
+                rs485conf.delay_rts_after_send = 0;
+ 
+                /* Write the current state of the RS-485 options with ioctl. */
+                if (ioctl (fd, TIOCSRS485, &rs485conf) < 0) {
+                    printf("Error: TIOCSRS485 ioctl not supported.\n");
+                }
+            }
             cfsetospeed(&tio, sioTtyRate);
             cfsetispeed(&tio, sioTtyRate);
             tcsetattr(fd, TCSANOW, &tio);
