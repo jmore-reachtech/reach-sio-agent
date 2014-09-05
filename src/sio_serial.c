@@ -30,7 +30,8 @@ void sioTtySetParams(int localEcho, unsigned int serialRate, int enable_rs485)
         {  19200,  B19200 },
         {  38400,  B38400 },
         {  57600,  B57600 },
-        { 115200, B115200 }
+        { 115200, B115200 },
+		{ 230400, B230400 }
     };
     unsigned i;
 
