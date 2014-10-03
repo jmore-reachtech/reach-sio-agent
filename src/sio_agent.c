@@ -283,7 +283,7 @@ static void sioAgent(const char *serialName, int useStdio,
             /* check for packet received on the client socket */
             if ((connectedFd >= 0) && FD_ISSET(connectedFd, &readFdSet)) {
                 /* connected tio_agent has something to relay to serial port */
-                char msgBuff[128];
+                char msgBuff[SIO_BUFFER_SIZE];
                 const int readCount = sioTioSocketRead(connectedFd, msgBuff,
                     sizeof(msgBuff));
                 if (readCount < 0) {
