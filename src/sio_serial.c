@@ -62,17 +62,17 @@ int sioTtyInit(const char *tty_dev)
     if (tty_dev == 0) {
         fd = posix_openpt(O_RDWR | O_NOCTTY);
         if (fd < 0) {
-            LogMsg(LOG_ERR, "can't open %s\n", tty_dev);
+            LogMsg(LOG_ERR, "[SIO] can't open %s\n", tty_dev);
         } else {
             tcsetattr(fd, TCSANOW, &tio);
             grantpt(fd);
             unlockpt(fd);
-            LogMsg(LOG_NOTICE, "slave port = %s\n", ptsname(fd));
+            LogMsg(LOG_NOTICE, "[SIO] slave port = %s\n", ptsname(fd));
         }
     } else {
         fd = open(tty_dev, O_RDWR);
         if (fd < 0) {
-            LogMsg(LOG_ERR, "can't open %s\n", tty_dev);
+            LogMsg(LOG_ERR, "[SIO] can't open %s\n", tty_dev);
         } else {
             if (rs485_mode) {
                 /* Enable RS-485 mode: */
@@ -86,7 +86,7 @@ int sioTtyInit(const char *tty_dev)
  
                 /* Write the current state of the RS-485 options with ioctl. */
                 if (ioctl (fd, TIOCSRS485, &rs485conf) < 0) {
-                    printf("Error: TIOCSRS485 ioctl not supported.\n");
+                    LogMsg(LOG_ERR,"Error: TIOCSRS485 ioctl not supported.\n");
                 }
             }
             cfsetospeed(&tio, sioTtyRate);
@@ -120,7 +120,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
                         write(fd, "\r\n", 2);
                     }
 
-                    LogMsg(LOG_INFO, "%s: buff = %s", __FUNCTION__, msgBuff);
+                    LogMsg(LOG_INFO, "[SIO] %s: buff = %s\n", __FUNCTION__, msgBuff);
 
                     return pos;
                 }
@@ -145,7 +145,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
                 return 0;
             }
         } else {
-            LogMsg(LOG_INFO, "sio_tty_reader(): error on read()\n");
+            LogMsg(LOG_INFO, "[SIO] sio_tty_reader(): error on read()\n");
             return -1;
         }
     }
@@ -154,11 +154,11 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 
 void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize)
 {
-    LogMsg(LOG_INFO, "sioTTYWRiter(): got buff %s", msgBuff);
+    LogMsg(LOG_INFO, "[SIO] %s(): write buff %s\n", __FUNCTION__, msgBuff);
 
 
     if (write(serialFd, msgBuff, buffSize) < 0) {
-        LogMsg(LOG_INFO, "%s(): error on write()\n", __FUNCTION__);
+        LogMsg(LOG_INFO, "[SIO] %s(): error on write()\n", __FUNCTION__);
     }
 }
 

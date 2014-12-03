@@ -54,7 +54,6 @@ int main(int argc, char *argv[])
             { "baud",       required_argument, 0, 'b' },
             { "daemon",     no_argument,       0, 'd' },
             { "test",       no_argument,       0, 'e' },
-            { "log",        required_argument, 0, 'o' },
             { "pty",        no_argument,       0, 'p' },
             { "serial",     required_argument, 0, 't' },
             { "sio-port",   optional_argument, 0, 's' },
@@ -64,7 +63,7 @@ int main(int argc, char *argv[])
             { "help",       no_argument,       0, 'h' },
             { 0,            0, 0,  0  }
         };
-        int c = getopt_long(argc, argv, "b:dilo:psf::t:vh?", longOptions, 0);
+        int c = getopt_long(argc, argv, "b:dilpsf::t:vh?", longOptions, 0);
 
         if (c == -1) {
             break;  // no more options to process
@@ -85,16 +84,6 @@ int main(int argc, char *argv[])
 
         case 'e':
             localEcho = 1;
-            break;
-
-        case 'o':
-            if (optarg == 0) {
-                logToSyslog = 1;
-                logFilePath = 0;
-            } else {
-                logToSyslog = 0;
-                logFilePath = optarg;
-            }
             break;
 
         case 'p':
@@ -155,7 +144,6 @@ static void sioDumpHelp()
         "    -d         | --daemon            run in background\n"
         "    -e         | --test              echo, backspace\n"
         "    -i         | --stdio             use standard I/O instead of serial\n"
-        "    -o<path>   | --logfile=<path>    log to file instead of stderr\n"
         "    -p         | --pty               use pty device instead of real serial\n"
         "    -s[<port>] | --sio_port[=<port>] use TCP socket, default = %d\n"
         "    -t         | --serial <dev>      use <dev> instead of /dev/ttyUSB0\n"
@@ -198,7 +186,7 @@ static void sioAgent(const char *serialName, int useStdio,
         memset(&a, 0, sizeof(a));
         a.sa_handler = sioInterruptHandler;
         if (sigaction(SIGINT, &a, 0) != 0) {
-            LogMsg(LOG_ERR, "sigaction() failed, errno = %d\n", errno);
+            LogMsg(LOG_ERR, "[SIO] sigaction() failed, errno = %d\n", errno);
             exit(1);
         }
     }
@@ -209,7 +197,7 @@ static void sioAgent(const char *serialName, int useStdio,
         unixSocketPath);
     if (listenFd < 0) {
         /* open failed, can't continue */
-        LogMsg(LOG_ERR, "could not open server socket\n");
+        LogMsg(LOG_ERR, "[SIO] could not open server socket\n");
         return;
     }
 
@@ -233,7 +221,7 @@ static void sioAgent(const char *serialName, int useStdio,
             serialFds.inFd = sioTtyInit(serialName);
             if (serialFds.inFd < 0) {
                 /* open failed, can't continue */
-                LogMsg(LOG_ERR, "could not open serial port %s\n", serialName);
+                LogMsg(LOG_ERR, "[SIO] could not open serial port %s\n", serialName);
                 break;
             } else {
                 serialFds.outFd = serialFds.maxFd = serialFds.inFd;
@@ -262,7 +250,7 @@ static void sioAgent(const char *serialName, int useStdio,
                 if (errno == EINTR) {
                     break;  /* drop out of inner while */
                 } else {
-                    LogMsg(LOG_ERR, "select() returned -1, errno = %d\n", errno);
+                    LogMsg(LOG_ERR, "[SIO] select() returned -1, errno = %d\n", errno);
                     exit(1);
                 }
             } else if (sel <= 0) {
@@ -322,7 +310,7 @@ static void sioAgent(const char *serialName, int useStdio,
         }
     }
 
-    LogMsg(LOG_INFO, "cleaning up\n");
+    LogMsg(LOG_INFO, "[SIO] cleaning up\n");
 
     if (connectedFd >= 0) {
         close(connectedFd);
@@ -335,9 +323,9 @@ static void sioAgent(const char *serialName, int useStdio,
         /* best effort removal of socket */
         const int rv = unlink(unixSocketPath);
         if (rv == 0) {
-            LogMsg(LOG_INFO, "socket file %s unlinked\n", unixSocketPath);
+            LogMsg(LOG_INFO, "[SIO] socket file %s unlinked\n", unixSocketPath);
         } else {
-            LogMsg(LOG_INFO, "socket file %s unlink failed\n", unixSocketPath);
+            LogMsg(LOG_INFO, "[SIO] socket file %s unlink failed\n", unixSocketPath);
         }
     }
 }

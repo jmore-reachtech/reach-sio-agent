@@ -46,6 +46,9 @@ void LogOpen(const char *ident, int logToSyslog, const char *logFilePath,
     }
 
     verboseOn = verboseFlag;
+    if(verboseOn) {
+		fprintf(stdout, "Verbose mode enabled\n");
+	}
 }
 
 void LogMsg(int level, const char *fmt, ...)
@@ -53,18 +56,20 @@ void LogMsg(int level, const char *fmt, ...)
     /* 
      * only log the message if in verbose mode or the priority is higher than
      * informational
-     */ 
-    if (verboseOn || (level < LOG_INFO)) {
+     */
+    if (verboseOn) {
         va_list ap;
         va_start(ap, fmt);
 
-        if (logFile == 0) {
+		/* support logging to stdout only */
+        //if (logFile == 0) {
             /* log to syslog */
-            vsyslog(LOG_USER | level, fmt, ap);
-        } else {
+        //    vsyslog(LOG_USER | level, fmt, ap);
+        //} else {
             /* log to an open descriptor such as stdout or a file */
-            vfprintf(logFile, fmt, ap);
-        }
+            //vfprintf(logFile, fmt, ap);
+            vprintf(fmt,ap);
+        //}
 
         va_end(ap);
     }
