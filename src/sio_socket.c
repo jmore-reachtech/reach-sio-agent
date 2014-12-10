@@ -152,8 +152,8 @@ int sioTioSocketRead(int socketFd, char *msgBuff, size_t bufferSize)
         close(socketFd);
         return -1;
     } else {
+		LogMsg(LOG_INFO, "[SIO] received => \"%s\"\n", msgBuff);
         msgBuff[cnt] = 0;
-        LogMsg(LOG_INFO, "[SIO] %s", msgBuff);
         return cnt;
     }
 }
@@ -162,6 +162,8 @@ int sioTioSocketRead(int socketFd, char *msgBuff, size_t bufferSize)
 void sioTioSocketWrite(int socketFd, const char *buff)
 {
     int cnt = strlen(buff);
+	
+	LogMsg(LOG_INFO, "[SIO] sending => \"%s\"\n", buff);
 
     if (send(socketFd, buff, cnt, 0) != cnt) {
         LogMsg(LOG_ERR, "[SIO] socket_send_to_client(): send() failed, %d\n",

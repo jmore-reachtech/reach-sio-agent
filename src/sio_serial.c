@@ -120,7 +120,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
                         write(fd, "\r\n", 2);
                     }
 
-                    LogMsg(LOG_INFO, "[SIO] %s: buff = %s\n", __FUNCTION__, msgBuff);
+                    LogMsg(LOG_INFO, "[SIO] received => \"%s\"\n", msgBuff);
 
                     return pos;
                 }
@@ -154,7 +154,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 
 void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize)
 {
-    LogMsg(LOG_INFO, "[SIO] %s(): write buff %s\n", __FUNCTION__, msgBuff);
+    LogMsg(LOG_INFO, "[SIO] sending => \"%s\"\n", msgBuff);
 
 
     if (write(serialFd, msgBuff, buffSize) < 0) {
