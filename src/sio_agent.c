@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
 static void sioDumpHelp()
 {
-	fprintf(stderr, "SIO Agent %s \n\n",SIO_VERSION);
+    //fprintf(stderr, "SIO Agent %s \n\n",SIO_VERSION);
 	
     fprintf(stderr, "usage: %s [options]\n"
         "  where options are:\n"
@@ -295,8 +295,9 @@ static void sioAgent(const char *serialName, int useStdio,
                 if (serialRet < 0) {
                     /* fall out of this loop to reopen serial port or pts */
                     break;
-                } else if ((serialRet > 0) && (connectedFd >= 0)) {
-                    sioTioSocketWrite(connectedFd, ttyBuff);
+                } else if ((serialRet > 0)) {
+                    //LogMsg(LOG_INFO, "%s\n", ttyBuff);
+                    //sioTioSocketWrite(connectedFd, ttyBuff);
                 }
             }
         }

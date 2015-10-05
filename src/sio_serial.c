@@ -13,8 +13,11 @@
 #include <sys/ioctl.h>
 #include <linux/serial.h>
 #include <asm-generic/ioctls.h> 
+#include <sys/stat.h>
 
 #include "sio_agent.h"
+# define CRTSCTS  020000000000
+#define BAUDRATE B230400
 
 static int sioLocalEchoFlag;
 static speed_t sioTtyRate;
@@ -52,12 +55,27 @@ int sioTtyInit(const char *tty_dev)
     struct serial_rs485 rs485conf;
     struct termios tio;
     memset(&tio, 0, sizeof(tio));
-    tio.c_iflag = 0;
+    tio.c_cflag = BAUDRATE | CS8 | CREAD | CLOCAL;
+    tio.c_iflag = IGNPAR | ICRNL;
     tio.c_oflag = 0;
-    tio.c_cflag = CS8 | CREAD | CLOCAL;
-    tio.c_lflag = 0;
-    tio.c_cc[VMIN] = 1;
-    tio.c_cc[VTIME] = 5;
+    tio.c_lflag = ICANON;
+    tio.c_cc[VINTR]    = 0;     /* Ctrl-c */
+    tio.c_cc[VQUIT]    = 0;     /* Ctrl-\ */
+    tio.c_cc[VERASE]   = 0;     /* del */
+    tio.c_cc[VKILL]    = 0;     /* @ */
+    tio.c_cc[VEOF]     = 4;     /* Ctrl-d */
+    tio.c_cc[VTIME]    = 0;     /* inter-character timer unused */
+    tio.c_cc[VMIN]     = 1;     /* blocking read until 1 character arrives */
+    tio.c_cc[VSWTC]    = 0;     /* '\0' */
+    tio.c_cc[VSTART]   = 0;     /* Ctrl-q */
+    tio.c_cc[VSTOP]    = 0;     /* Ctrl-s */
+    tio.c_cc[VSUSP]    = 0;     /* Ctrl-z */
+    tio.c_cc[VEOL]     = 0;     /* '\0' */
+    tio.c_cc[VREPRINT] = 0;     /* Ctrl-r */
+    tio.c_cc[VDISCARD] = 0;     /* Ctrl-u */
+    tio.c_cc[VWERASE]  = 0;     /* Ctrl-w */
+    tio.c_cc[VLNEXT]   = 0;     /* Ctrl-v */
+    tio.c_cc[VEOL2]    = 0;     /* '\0' */
 
     if (tty_dev == 0) {
         fd = posix_openpt(O_RDWR | O_NOCTTY);
@@ -70,7 +88,7 @@ int sioTtyInit(const char *tty_dev)
             LogMsg(LOG_NOTICE, "[SIO] slave port = %s\n", ptsname(fd));
         }
     } else {
-        fd = open(tty_dev, O_RDWR);
+        fd = open(tty_dev, O_RDWR | O_NOCTTY | O_NONBLOCK);
         if (fd < 0) {
             LogMsg(LOG_ERR, "[SIO] can't open %s\n", tty_dev);
         } else {
@@ -89,8 +107,9 @@ int sioTtyInit(const char *tty_dev)
                     LogMsg(LOG_ERR,"Error: TIOCSRS485 ioctl not supported.\n");
                 }
             }
-            cfsetospeed(&tio, sioTtyRate);
-            cfsetispeed(&tio, sioTtyRate);
+            //cfsetospeed(&tio, sioTtyRate);
+            //cfsetispeed(&tio, sioTtyRate);
+            LogMsg(LOG_INFO,"Port settings set.\n");
             tcsetattr(fd, TCSANOW, &tio);
         }
     }
@@ -100,55 +119,7 @@ int sioTtyInit(const char *tty_dev)
 
 int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 {
-    /* Gather entire string, drop CR. */
-    char c;
-
-    for(;;) {
-        if (read(fd, &c, 1) > 0) {
-            if ((c == '\r') || (c == '\n')){
-                int pos = *currPos;
-                *currPos = 0;
-
-                if (pos < 1) {
-                    /* nothing here */
-                    return 0;
-                } else {
-                    msgBuff[pos++] = '\n';
-                    msgBuff[pos++] = '\0';
-
-                    if (sioLocalEchoFlag) {
-                        write(fd, "\r\n", 2);
-                    }
-
-                    LogMsg(LOG_INFO, "[SIO] received => \"%s\"\n", msgBuff);
-
-                    return pos;
-                }
-            } else if (sioLocalEchoFlag && (c == '\b')) {
-                /*  If it's BS with nothing in buffer, ignore, else
-                 *  back up stream, erasing last character typed. */
-                if (*currPos > 0) {
-                    (*currPos)--;
-                    write(fd, "\b \b", 3);
-                }
-                return 0;
-            } else {
-                if (*currPos >= bufSize) {
-                    /* buffer full with no CR can't be good; flush it */
-                    *currPos = 0;
-                } else {
-                    msgBuff[(*currPos)++] = c;
-                    if (sioLocalEchoFlag) {
-                        write(fd, &c, 1);
-                    }
-                }
-                return 0;
-            }
-        } else {
-            LogMsg(LOG_INFO, "[SIO] sio_tty_reader(): error on read()\n");
-            return -1;
-        }
-    }
+    return read(fd, msgBuff, bufSize);
 }
 
 
