@@ -1,1 +1,3 @@
 reach-sio-agent.pro.user
+*.swp
+.clang

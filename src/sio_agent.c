@@ -186,7 +186,11 @@ static void sioAgent(const char *serialName, int useStdio,
         memset(&a, 0, sizeof(a));
         a.sa_handler = sioInterruptHandler;
         if (sigaction(SIGINT, &a, 0) != 0) {
-            LogMsg(LOG_ERR, "[SIO] sigaction() failed, errno = %d\n", errno);
+            LogMsg(LOG_ERR, "[SIO] sigaction(SIGINT) failed, errno = %d\n", errno);
+            exit(1);
+        }
+        if (sigaction(SIGTERM, &a, 0) != 0) {
+            LogMsg(LOG_ERR, "[SIO] sigaction(SIGTERM) failed, errno = %d\n", errno);
             exit(1);
         }
     }

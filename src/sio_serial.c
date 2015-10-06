@@ -107,8 +107,8 @@ int sioTtyInit(const char *tty_dev)
                     LogMsg(LOG_ERR,"Error: TIOCSRS485 ioctl not supported.\n");
                 }
             }
-            //cfsetospeed(&tio, sioTtyRate);
-            //cfsetispeed(&tio, sioTtyRate);
+            cfsetospeed(&tio, sioTtyRate);
+            cfsetispeed(&tio, sioTtyRate);
             LogMsg(LOG_INFO,"Port settings set.\n");
             tcsetattr(fd, TCSANOW, &tio);
         }
