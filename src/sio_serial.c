@@ -77,7 +77,13 @@ int sioTtyInit(const char *tty_dev)
             if (rs485_mode) {
                 /* Enable RS-485 mode: */
                 rs485conf.flags |= SER_RS485_ENABLED;
- 
+
+                /* set logical level for RTS pin equal to 1 when sending: */
+                rs485conf.flags |= SER_RS485_RTS_ON_SEND;
+
+                /* set logical level for RTS pin equal to 0 after sending: */
+                rs485conf.flags &= ~(SER_RS485_RTS_AFTER_SEND);
+
                 /* Set rts/txen delay before send, if needed: (in microseconds) */
                 rs485conf.delay_rts_before_send = 0;
  
