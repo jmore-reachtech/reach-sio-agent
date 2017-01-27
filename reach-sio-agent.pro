@@ -3,6 +3,12 @@ CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
 
+VERSION = 1.0.9
+# add #define for the version
+DEFINES += SIO_VERSION=\\\"$$VERSION\\\"
+
+TARGET=sio-agent
+
 SOURCES += src/sio_agent.c \
         src/sio_local.c \
         src/sio_serial.c \
