@@ -12,11 +12,9 @@ struct FdPair {
 };
 
 /* functions defined in sio_socket.c */
-int sioTioSocketInit(unsigned short port, int *addressFamily,
-    const char *unixSocketPath);
-int sioTioSocketAccept(int serverFd, int addressFamily);
-int sioTioSocketRead(int newFd, char *msgBuff, size_t bufferSize);
-void sioTioSocketWrite(int socketFd, const char *buff);
+int sioQMLConnect(unsigned short port);
+int sioQMLSocketRead(int newFd, char *msgBuff, size_t bufferSize);
+void sioQMLSocketWrite(int socketFd, const char *buff);
 
 /* functions in sio_serial.c */
 void sioTtySetParams(int localEcho, unsigned int serialRate, int enableRS485);
@@ -32,8 +30,7 @@ void LogOpen(const char *ident, int logToSyslog, const char *logFilePath,
     int verboseFlag);
 void LogMsg(int level, const char *fmt, ...);
 
-#define SIO_DEFAULT_AGENT_PORT 7880
-#define SIO_AGENT_UNIX_SOCKET "/tmp/sioSocket"
+#define SIO_DEFAULT_AGENT_PORT 4000
 #define SIO_DEFAULT_SERIAL_DEVICE "/dev/ttyUSB0"
 #define SIO_DEFAULT_SERIAL_RATE 115200
 

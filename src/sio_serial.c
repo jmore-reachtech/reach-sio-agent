@@ -77,22 +77,17 @@ int sioTtyInit(const char *tty_dev)
             if (rs485_mode) {
                 /* Enable RS-485 mode: */
                 rs485conf.flags |= SER_RS485_ENABLED;
-
                 /* set logical level for RTS pin equal to 1 when sending: */
                 rs485conf.flags |= SER_RS485_RTS_ON_SEND;
-
                 /* set logical level for RTS pin equal to 0 after sending: */
                 rs485conf.flags &= ~(SER_RS485_RTS_AFTER_SEND);
-
                 /* Set rts/txen delay before send, if needed: (in microseconds) */
                 rs485conf.delay_rts_before_send = 0;
- 
                 /* Set rts/txen delay after send, if needed: (in microseconds) */
                 rs485conf.delay_rts_after_send = 0;
- 
                 /* Write the current state of the RS-485 options with ioctl. */
                 if (ioctl (fd, TIOCSRS485, &rs485conf) < 0) {
-                    LogMsg(LOG_ERR,"Error: TIOCSRS485 ioctl not supported.\n");
+                    LogMsg(LOG_ERR,"[SIO] Error: TIOCSRS485 ioctl not supported.\n");
                 }
             }
             cfsetospeed(&tio, sioTtyRate);
@@ -126,7 +121,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
                         write(fd, "\r\n", 2);
                     }
 
-                    LogMsg(LOG_INFO, "[SIO] received => \"%s\"\n", msgBuff);
+                    LogMsg(LOG_INFO, "[SIO] received from serial port => \"%s\"\n", msgBuff);
 
                     return pos;
                 }
@@ -160,7 +155,7 @@ int sioTtyRead(int fd, char *msgBuff, size_t bufSize, off_t *currPos)
 
 void sioTtyWrite(int serialFd, const char *msgBuff, int buffSize)
 {
-    LogMsg(LOG_INFO, "[SIO] sending => \"%s\"\n", msgBuff);
+    LogMsg(LOG_INFO, "[SIO] sending to serial port => \"%s\"\n", msgBuff);
 
 
     if (write(serialFd, msgBuff, buffSize) < 0) {
